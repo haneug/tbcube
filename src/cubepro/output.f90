@@ -1,4 +1,4 @@
-! This file is part of dipro.
+! This file is part of cubepro.
 ! SPDX-Identifier: Apache-2.0
 !
 ! Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +14,7 @@
 ! limitations under the License.
 
 !> Helper routines to for output generation
-module dipro_output
+module cubepro_output
    implicit none
    private
 
@@ -119,4 +119,4 @@ pure function to_string(val) result(string)
    string = buffer(pos:)
 end function to_string
 
-end module dipro_output
+end module cubepro_output

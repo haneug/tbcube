@@ -1,4 +1,4 @@
-! This file is part of dipro.
+! This file is part of cubepro.
 ! SPDX-Identifier: Apache-2.0
 !
 ! Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,46 +14,46 @@
 ! limitations under the License.
 
 !> Version information for this project
-module dipro_version
+module cubepro_version
    implicit none
    private
 
-   public :: dipro_version_string, dipro_version_compact
-   public :: get_dipro_version
+   public :: cubepro_version_string, cubepro_version_compact
+   public :: get_cubepro_version
 
 
-   !> String representation of the dipro version
-   character(len=*), parameter :: dipro_version_string = "0.1.0"
+   !> String representation of the cubepro version
+   character(len=*), parameter :: cubepro_version_string = "0.1.0"
 
-   !> Numeric representation of the dipro version
-   integer, parameter :: dipro_version_compact(3) = [0, 1, 0]
+   !> Numeric representation of the cubepro version
+   integer, parameter :: cubepro_version_compact(3) = [0, 1, 0]
 
 contains
 
-!> Getter function to retrieve dipro version
-subroutine get_dipro_version(major, minor, patch, string)
-   !> Major version number of the dipro version
+!> Getter function to retrieve cubepro version
+subroutine get_cubepro_version(major, minor, patch, string)
+   !> Major version number of the cubepro version
    integer, intent(out), optional :: major
-   !> Minor version number of the dipro version
+   !> Minor version number of the cubepro version
    integer, intent(out), optional :: minor
-   !> Patch version number of the dipro version
+   !> Patch version number of the cubepro version
    integer, intent(out), optional :: patch
-   !> String representation of the dipro version
+   !> String representation of the cubepro version
    character(len=:), allocatable, intent(out), optional :: string
 
    if (present(major)) then
-      major = dipro_version_compact(1)
+      major = cubepro_version_compact(1)
    end if
    if (present(minor)) then
-      minor = dipro_version_compact(2)
+      minor = cubepro_version_compact(2)
    end if
    if (present(patch)) then
-      patch = dipro_version_compact(3)
+      patch = cubepro_version_compact(3)
    end if
    if (present(string)) then
-      string = dipro_version_string
+      string = cubepro_version_string
    end if
 
-end subroutine get_dipro_version
+end subroutine get_cubepro_version
 
-end module dipro_version
+end module cubepro_version

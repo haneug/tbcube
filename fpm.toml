@@ -1,0 +1,8 @@
+name = "cubepro"
+version = "0.1.0"
+license = "Apache-2.0"
+description = "Cube file generation for extended tight-binding methods"
+
+[dependencies]
+mctc-lib.git = "https://github.com/grimme-lab/mctc-lib"
+tblite.git = "https://github.com/awvwgk/tblite"

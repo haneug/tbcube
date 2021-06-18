@@ -1,4 +1,4 @@
-! This file is part of dipro.
+! This file is part of cubepro.
 ! SPDX-Identifier: Apache-2.0
 !
 ! Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,7 @@ module cubepro
    use mctc_io, only : structure_type, new
    use mctc_io_convert, only : autoev
    use cubepro_xtb, only : get_calculator
-   use tblite_basis_type, only : get_cutoff, basis_type
+   use tblite_basis_type, only : get_cutoff, basis_type, cgto_type, new_basis
    use tblite_blas, only : dot, gemv, gemm
    use tblite_context_type, only : context_type
    use tblite_cutoff, only : get_lattice_points
@@ -38,12 +38,8 @@ module cubepro
    type :: cube_input
       !> Name of the requested tight binding method
       character(len=:), allocatable :: method
-      !> List of fragments, generated if not given here
-      !integer, allocatable :: fragment(:)
-      !> Threshold for generating fragments from bond orders
-      !real(wp) :: thr = 0.1_wp
       !> Calculation accuracy
-      !real(wp) :: accuracy = 1.0_wp
+      real(wp) :: accuracy = 1.0_wp
       !> Output verbosity
       integer :: verbosity = 2
       !> Electronic temperature in Kelvin
@@ -73,7 +69,8 @@ subroutine get_cube(input, mol, error)
    type(structure_type), allocatable :: mfrag(:)
    type(wavefunction_type) :: wfn
    type(wavefunction_type), allocatable :: wfx(:)
-   character*(*) fname
+   character(len=:), allocatable :: fname
+   real(wp) :: energy
 
    call get_calculator(calc, mol, input%method, error)
    if (allocated(error)) return
@@ -89,7 +86,7 @@ subroutine get_cube(input, mol, error)
    end if
 
    fname='density.cube'
-   call cube(mol,wfn,fname,basis)
+   call cube(mol,wfn,fname,calc%bas)
 
 end subroutine get_cube
 
@@ -102,24 +99,24 @@ subroutine cube(mol,wfn,fname,basis)
    type(wavefunction_type), intent(in) :: wfn
    character*(*), intent(in) :: fname
 
-   !real*8, intent ( in ) :: eval(nmo)
-   !real*8, intent ( in ) :: occ (nmo)
-   !real*8, intent ( in ) :: cmo(nbf,nmo)
-   !integer, intent( in ) :: at(n)
-   !integer, intent( in ) :: n,nmo,nbf
    integer :: n
-   real*8 :: xyz(3,n)
+   real*8 :: xyz(3,mol%nat)
+   type(cgto_type) :: icgto, jcgto
 
    real*4 ,allocatable  ::cb   (:,:,:)
    real*8 ,allocatable  ::array(:)
 
-   integer i,j,k,m,nm,ii,jj,iii,jjj,npri,nprj,primstart(nbf),nexp
-   integer iat,jat,xst,yst,zst,cou,iprimcount,jprimcount,iiii,jjjj
-   real*8 thr,thr3,intcut,intcut2
+   integer i,j,k,ii,jj,npri,nprj,nexp
+   integer ish,jsh,izp,jzp,iao,jao,iso,jso
+   integer iat,jat,xst,yst,zst,cou,iprimcount,jprimcount
+   real*8 thr,thr3,intcut,intcut2,dist_cut
    real*8 w0,w1,t0,t1,r,r2,val,rab,ccc,gridp(3),xyza(3),xyzb(3),dr3
    real*8 step,px,py,pz,xinc,yinc,zinc,nx,ny,nz,vv(1),v,est,nfod
    real*8 f1,f2,dx1,dy1,dz1,dx2,dy2,dz2,r1,dum,r1xy,r2xy
-   real*8 dxx1,dyy1,dzz1,dxx2,dyy2,dzz2,ar1,ar2,cc
+   real*8 dxx1,dyy1,dzz1,dxx2,dyy2,dzz2,ar1,ar2
+   real*8 pij,pcoef
+
+   real(wp) :: cube_step, cube_pthr
    integer ifile
 
 
@@ -127,9 +124,11 @@ subroutine cube(mol,wfn,fname,basis)
    xyz=mol%xyz
 
 !  grid spacing for cube file
-   cube_step = 0.4_wp
+   cube_step = 0.5_wp
 !  density matrix neglect threshold
-   cube_pthr = 0.05_wp
+   cube_pthr = 0.01_wp
+!  distance criteria
+   dist_cut = 200.0_wp
    
    write(*,*)
    write(*,*)'cube file module (SG, 7/16)'
@@ -148,8 +147,6 @@ subroutine cube(mol,wfn,fname,basis)
 
    write(*,'('' cube_pthr     : '',f7.3)')cube_pthr
    write(*,'('' cube_step     : '',f7.3)')cube_step
-   write(*,'('' non-zero P (%): '',f7.3,''   nmat:'',i8)') &
-   & 100.*float(nm)/float(nbf*(nbf+1)/2),nm
 
    px=maxval(xyz(1,1:n))+3.0
    py=maxval(xyz(2,1:n))+3.0
@@ -181,7 +178,7 @@ subroutine cube(mol,wfn,fname,basis)
    dr3=xinc*yinc*zinc
 
    write(*,*)'writing ',trim(fname)
-   call open_file(ifile,fname,'w')
+   open(file=fname, newunit=ifile)
    write(ifile,*)'xtb spin/fo density'
    write(ifile,*)'By S.G.'
    write(ifile,101)n,nx,ny,nz
@@ -189,7 +186,7 @@ subroutine cube(mol,wfn,fname,basis)
    write(ifile,101)yst+1,0.0,yinc,0.0
    write(ifile,101)zst+1,0.0,0.0,zinc
    do i=1,n
-      write(ifile,102)mol%id(i),0.0,xyz(1,i),xyz(2,i),xyz(3,i)
+      write(ifile,102)mol%num(mol%id(i)),0.0,xyz(1,i),xyz(2,i),xyz(3,i)
    enddo
 
    allocate(cb(0:zst,0:yst,0:xst))
@@ -200,8 +197,8 @@ subroutine cube(mol,wfn,fname,basis)
    ! loop over atoms 
    do iat=1, n
    do jat=1, n
-      iso = ish_at(iat)
-      jso = jsh_at(jat)
+      iso = basis%ish_at(iat)
+      jso = basis%ish_at(jat)
       izp=mol%id(iat)
       jzp=mol%id(jat)
       xyza(1:3)=xyz(1:3,iat)
@@ -210,68 +207,71 @@ subroutine cube(mol,wfn,fname,basis)
       &      +(xyza(2)-xyzb(2))**2  &
       &      +(xyza(3)-xyzb(3))**2
       ! loop over shells
-      do ish=1, basis%nsh_at(iat)
-      do jsh=1, basis%nsh_at(jat)
-         ii = iao_sh(iso + ish)
-         jj = iao_sh(jso + jsh)
-         icgto = basis%cgto(ish,izp)
-         jcgto = basis%cgto(jsh,jzp)
-         ! loop over shellblock NAOs
-         do iao = 1, nao_sh(iso + ish)
-         do jao = 1, nao_sh(jso + jsh)
-            pij = wfn%density(ii+iao,jj+jao)
-            ! loop over primitives
-            pcoef = 0.0_wp
-            do npri = 1 , icgto%nprim 
-            do nprj = 1 , jcgto%nprim
-               pcoef = pcoef+ icgto%coeff(npri) * jcgto%nprim(nprj)
-            end do
-            end do
-            pcoef = pcoef * pij
-               ! grid loops
-               gridp(1)=nx
-               do i=0,xst
-                  gridp(1)=nx+(xinc*i)
-                  dx1=xyza(1)-gridp(1)
-                  dx2=xyzb(1)-gridp(1)
-                  dxx1=dx1*dx1
-                  dxx2=dx2*dx2
-                  gridp(2)=ny
-                  do j=0,yst
-                     gridp(2)=ny+(yinc*j)
-                     dy1=xyza(2)-gridp(2)
-                     dy2=xyzb(2)-gridp(2)
-                     dyy1=dy1*dy1
-                     dyy2=dy2*dy2
-                     gridp(3)=nz
-                     r1xy=dxx1+dyy1
-                     r2xy=dxx2+dyy2
-                     do k=0,zst
-                        gridp(3)=nz+(zinc*k)
-                        dz1=xyza(3)-gridp(3)
-                        dz2=xyzb(3)-gridp(3)
-                        dzz1=dz1*dz1
-                        dzz2=dz2*dz2
-                        r1=r1xy+dzz1
-                        ! primitive function value, needs to distuinguish between different 
-                        !ar1=icgto%alpha(npri)*r1
-                        !if(ar1.lt.intcut2)then  ! exp(-16) < 1.d-7 i.e. zero
-                           call primvalf(dx1,dy1,dz1,dxx1,dyy1,dzz1,ar1, &
-                              &             icgto%ang,nexp,array,f1)
-                        r2=r2xy+dzz2
-                        !ar2=jcgto%alpha(nrpj)*r2
-                        !   if(ar2.lt.intcut2)then
-                              call primvalf(dx2,dy2,dz2,dxx2,dyy2,dzz2,ar2, &
-                                 &             jcgto%ang,nexp,array,f2)
-                              cb(k,j,i)=cb(k,j,i)+pcoef*f1*f2
-                           endif
-                        endif
+      if(rab.lt.dist_cut)then
+         do ish=1, basis%nsh_at(iat)
+         do jsh=1, basis%nsh_at(jat)
+            ii = basis%iao_sh(iso + ish)
+            jj = basis%iao_sh(jso + jsh)
+            icgto = basis%cgto(ish,izp)
+            jcgto = basis%cgto(jsh,jzp)
+            ! loop over shellblock NAOs
+            do iao = 1, basis%nao_sh(iso + ish)
+            do jao = 1, basis%nao_sh(jso + jsh)
+               pij = wfn%density(ii+iao,jj+jao)
+               if (abs(pij).gt.thr)then
+                  ! loop over primitives
+                  do npri = 1 , icgto%nprim 
+                  do nprj = 1 , jcgto%nprim
+                     pcoef = pij* icgto%coeff(npri) * jcgto%coeff(nprj)
+                     ! grid loops
+                     gridp(1)=nx
+                     do i=0,xst
+                        gridp(1)=nx+(xinc*i)
+                        dx1=xyza(1)-gridp(1)
+                        dx2=xyzb(1)-gridp(1)
+                        dxx1=dx1*dx1
+                        dxx2=dx2*dx2
+                        gridp(2)=ny
+                        do j=0,yst
+                           gridp(2)=ny+(yinc*j)
+                           dy1=xyza(2)-gridp(2)
+                           dy2=xyzb(2)-gridp(2)
+                           dyy1=dy1*dy1
+                           dyy2=dy2*dy2
+                           gridp(3)=nz
+                           r1xy=dxx1+dyy1
+                           r2xy=dxx2+dyy2
+                           do k=0,zst
+                              gridp(3)=nz+(zinc*k)
+                              dz1=xyza(3)-gridp(3)
+                              dz2=xyzb(3)-gridp(3)
+                              dzz1=dz1*dz1
+                              dzz2=dz2*dz2
+                              r1=r1xy+dzz1
+                              ar1=icgto%alpha(npri)*r1
+                              if(ar1.lt.intcut2)then  ! exp(-16) < 1.d-7 i.e. zero
+                                 call primvalf(dx1,dy1,dz1,dxx1,dyy1,dzz1,ar1, &
+                                    &             icgto%ang,iao,nexp,array,f1)
+                                 r2=r2xy+dzz2
+                                 ar2=jcgto%alpha(nprj)*r2
+                                 if(ar2.lt.intcut2)then
+                                    call primvalf(dx2,dy2,dz2,dxx2,dyy2,dzz2,ar2, &
+                                       &             jcgto%ang,jao,nexp,array,f2)
+                                    cb(k,j,i)=cb(k,j,i)+pcoef*f1*f2
+                                 endif
+                              endif
+                           enddo
+                        enddo
                      enddo
                   enddo
+                  enddo
+               endif
             enddo
-            endif
+            enddo
          enddo
-      enddo
+         enddo
+      endif
+   enddo
    enddo
 
    !     Dmat loop end     -----------------------------------
@@ -291,7 +291,7 @@ subroutine cube(mol,wfn,fname,basis)
          enddo
       enddo
    enddo
-   call close_file(ifile)
+   close(ifile)
 
    101   format(I5,3F16.6)
    102   format(I5,4F16.6)
@@ -331,28 +331,44 @@ subroutine primval(dx,dy,dz,dx2,dy2,dz2,alpr2,lao,f)
 end subroutine primval
 
 ! routine with exp table lookup
-subroutine primvalf(dx,dy,dz,dx2,dy2,dz2,alpr2,lao,nexp,a,f)
+subroutine primvalf(dx,dy,dz,dx2,dy2,dz2,alpr2,ang,iao,nexp,a,f)
    implicit none
-   integer lao,nexp
+   integer ang,iao,nexp
    real*8 a(0:nexp)
    real*8 f,dx2,dy2,dz2
    real*8 dx,dy,dz,alpr2
 
-   select case (lao)
-
+   select case (ang)
    case(0)
      f=fastexp(nexp,a,alpr2)
-   case(1)  
+   case(1)
+     select case (iao)
+     case(1)
      f=fastexp(nexp,a,alpr2)*dx
-     f=f+fastexp(nexp,a,alpr2)*dy
-     f=f+fastexp(nexp,a,alpr2)*dz
+     case(2)
+     f=fastexp(nexp,a,alpr2)*dy
+     case(3)
+     f=fastexp(nexp,a,alpr2)*dz
+     end select
    case(2)
+     select case (iao)
+     case(1)
      f=fastexp(nexp,a,alpr2)*dx2
-     f=f+fastexp(nexp,a,alpr2)*dy2
-     f=f+fastexp(nexp,a,alpr2)*dz2
-     f=f+fastexp(nexp,a,alpr2)*dx*dy
-     f=f+fastexp(nexp,a,alpr2)*dx*dz
-     f=f+fastexp(nexp,a,alpr2)*dy*dz
+     !f=fastexp(nexp,a,alpr2)*dx*dz
+     case(2)
+     f=fastexp(nexp,a,alpr2)*dy2
+     !f=fastexp(nexp,a,alpr2)*dy*dz
+     case(3)
+     f=fastexp(nexp,a,alpr2)*dz2
+     !f=fastexp(nexp,a,alpr2)*dx*dy
+     case(4)
+     f=fastexp(nexp,a,alpr2)*dx*dy
+     !f=fastexp(nexp,a,alpr2)*dz2
+     case(5)
+     !f=fastexp(nexp,a,alpr2)*(dx2-dy2)
+     case(6)
+     f=fastexp(nexp,a,alpr2)*dy*dz
+     end select
    end select
 
 end subroutine primvalf

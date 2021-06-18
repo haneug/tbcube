@@ -1,4 +1,4 @@
-! This file is part of dipro.
+! This file is part of cubepro.
 ! SPDX-Identifier: Apache-2.0
 !
 ! Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +14,7 @@
 ! limitations under the License.
 
 !> Helper routines to handle calculations with the tblite library
-module dipro_xtb
+module cubepro_xtb
    use mctc_env, only : error_type, fatal_error, wp
    use mctc_io, only : structure_type
    use tblite_xtb_calculator, only : xtb_calculator
@@ -52,4 +52,4 @@ subroutine get_calculator(calc, mol, method, error)
    end select
 end subroutine get_calculator
 
-end module dipro_xtb
+end module cubepro_xtb
