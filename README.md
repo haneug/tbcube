@@ -1,4 +1,4 @@
-# Cube file generation based on dimer projection programm infrastructure
+# Cube file generator for extended tight-binding methods
 
 
 ## Installation

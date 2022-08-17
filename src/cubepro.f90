@@ -70,13 +70,18 @@ subroutine get_cube(input, mol, error)
    type(wavefunction_type) :: wfn
    type(wavefunction_type), allocatable :: wfx(:)
    character(len=:), allocatable :: fname
+   integer :: nspin = 1
    real(wp) :: energy
+   real(wp) :: kt
+
+
+   kt=input%etemp * ktoau
 
    call get_calculator(calc, mol, input%method, error)
    if (allocated(error)) return
 
    call new_wavefunction(wfn, mol%nat, calc%bas%nsh, calc%bas%nao, &
-      & input%etemp * ktoau)
+      & nspin, kt)
 
    call xtb_singlepoint(ctx, mol, calc, wfn, input%accuracy, energy, &
       & verbosity=input%verbosity-1)
@@ -91,7 +96,6 @@ subroutine get_cube(input, mol, error)
 end subroutine get_cube
 
 
-! Taken from xtb and modified
 subroutine cube(mol,wfn,fname,basis)
    implicit none
    type(structure_type), intent(in) :: mol
@@ -116,6 +120,7 @@ subroutine cube(mol,wfn,fname,basis)
    real*8 dxx1,dyy1,dzz1,dxx2,dyy2,dzz2,ar1,ar2
    real*8 pij,pcoef
 
+
    real(wp) :: cube_step, cube_pthr
    integer ifile
 
@@ -131,7 +136,7 @@ subroutine cube(mol,wfn,fname,basis)
    dist_cut = 200.0_wp
    
    write(*,*)
-   write(*,*)'cube file module (SG, 7/16)'
+   write(*,*)'cube file module (HN)'
    thr = cube_pthr ! Dmat pre-screen
    step= cube_step ! grid step (Bohr)
    intcut=8.00d0   ! primitive cut
@@ -179,8 +184,8 @@ subroutine cube(mol,wfn,fname,basis)
 
    write(*,*)'writing ',trim(fname)
    open(file=fname, newunit=ifile)
-   write(ifile,*)'xtb spin/fo density'
-   write(ifile,*)'By S.G.'
+   write(ifile,*)'Cubepro cube file'
+   write(ifile,*)'By H.N.'
    write(ifile,101)n,nx,ny,nz
    write(ifile,101)xst+1,xinc,0.0,0.0
    write(ifile,101)yst+1,0.0,yinc,0.0
@@ -197,8 +202,10 @@ subroutine cube(mol,wfn,fname,basis)
    ! loop over atoms 
    do iat=1, n
    do jat=1, n
+      ! index shell offset for each of the atoms
       iso = basis%ish_at(iat)
       jso = basis%ish_at(jat)
+      ! Atom type
       izp=mol%id(iat)
       jzp=mol%id(jat)
       xyza(1:3)=xyz(1:3,iat)
@@ -217,7 +224,7 @@ subroutine cube(mol,wfn,fname,basis)
             ! loop over shellblock NAOs
             do iao = 1, basis%nao_sh(iso + ish)
             do jao = 1, basis%nao_sh(jso + jsh)
-               pij = wfn%density(ii+iao,jj+jao)
+               pij = wfn%density(ii+iao,jj+jao,1)
                if (abs(pij).gt.thr)then
                   ! loop over primitives
                   do npri = 1 , icgto%nprim 
@@ -250,12 +257,12 @@ subroutine cube(mol,wfn,fname,basis)
                               r1=r1xy+dzz1
                               ar1=icgto%alpha(npri)*r1
                               if(ar1.lt.intcut2)then  ! exp(-16) < 1.d-7 i.e. zero
-                                 call primvalf(dx1,dy1,dz1,dxx1,dyy1,dzz1,ar1, &
+                                 call primvalf(r1,dx1,dy1,dz1,dxx1,dyy1,dzz1,ar1, &
                                     &             icgto%ang,iao,nexp,array,f1)
                                  r2=r2xy+dzz2
                                  ar2=jcgto%alpha(nprj)*r2
                                  if(ar2.lt.intcut2)then
-                                    call primvalf(dx2,dy2,dz2,dxx2,dyy2,dzz2,ar2, &
+                                    call primvalf(r2,dx2,dy2,dz2,dxx2,dyy2,dzz2,ar2, &
                                        &             jcgto%ang,jao,nexp,array,f2)
                                     cb(k,j,i)=cb(k,j,i)+pcoef*f1*f2
                                  endif
@@ -331,44 +338,66 @@ subroutine primval(dx,dy,dz,dx2,dy2,dz2,alpr2,lao,f)
 end subroutine primval
 
 ! routine with exp table lookup
-subroutine primvalf(dx,dy,dz,dx2,dy2,dz2,alpr2,ang,iao,nexp,a,f)
+subroutine primvalf(r,dx,dy,dz,dx2,dy2,dz2,alpr2,ang,iao,nexp,a,f)
    implicit none
    integer ang,iao,nexp
    real*8 a(0:nexp)
+   real*8 r
    real*8 f,dx2,dy2,dz2
    real*8 dx,dy,dz,alpr2
 
    select case (ang)
+   ! s-function
    case(0)
      f=fastexp(nexp,a,alpr2)
+   ! p-functions
    case(1)
      select case (iao)
      case(1)
-     f=fastexp(nexp,a,alpr2)*dx
+       f=fastexp(nexp,a,alpr2)*dy
      case(2)
-     f=fastexp(nexp,a,alpr2)*dy
+       f=fastexp(nexp,a,alpr2)*dz
      case(3)
-     f=fastexp(nexp,a,alpr2)*dz
+       f=fastexp(nexp,a,alpr2)*dx
      end select
+   ! d-functions
    case(2)
      select case (iao)
      case(1)
-     f=fastexp(nexp,a,alpr2)*dx2
-     !f=fastexp(nexp,a,alpr2)*dx*dz
+       f=fastexp(nexp,a,alpr2)*dx*dy
      case(2)
-     f=fastexp(nexp,a,alpr2)*dy2
-     !f=fastexp(nexp,a,alpr2)*dy*dz
+       f=fastexp(nexp,a,alpr2)*dy*dz
      case(3)
-     f=fastexp(nexp,a,alpr2)*dz2
-     !f=fastexp(nexp,a,alpr2)*dx*dy
+       f=fastexp(nexp,a,alpr2)*(3*dz2-r*r)
      case(4)
-     f=fastexp(nexp,a,alpr2)*dx*dy
-     !f=fastexp(nexp,a,alpr2)*dz2
+       f=fastexp(nexp,a,alpr2)*dx*dz
      case(5)
-     !f=fastexp(nexp,a,alpr2)*(dx2-dy2)
-     case(6)
-     f=fastexp(nexp,a,alpr2)*dy*dz
+       f=fastexp(nexp,a,alpr2)*(dx2-dy2)
+     case default
+       error stop "Angular momentum not supported"
      end select
+   ! f-functions
+   case(3)
+     select case (iao)
+     case(1)
+       f=fastexp(nexp,a,alpr2)*(dy*(3*dx2-dy2))
+     case(2)
+       f=fastexp(nexp,a,alpr2)*(dx*dy*dz)
+     case(3)
+       f=fastexp(nexp,a,alpr2)*(dy*(5*dz2-r*r))
+     case(4)
+       f=fastexp(nexp,a,alpr2)*(5*dz2*dz-3*dz*r*r)
+     case(5)
+       f=fastexp(nexp,a,alpr2)*dx*(5*dz2-r*r)
+     case(6)
+       f=fastexp(nexp,a,alpr2)*(dz*(dx2-dy2))
+     case(7)
+       f=fastexp(nexp,a,alpr2)*(dx*(dx2-3*dy2))
+     case default
+       error stop "Angular momentum not supported"
+     end select
+   case default
+       error stop "Angular momentum not supported"
    end select
 
 end subroutine primvalf
