@@ -62,8 +62,6 @@ subroutine get_cube(input, mol, error)
 
    integer :: spin, charge, stat, unit, ifr, nfrag, nao
    logical :: exist
-   !real(wp) :: energy, cutoff, jab, sab, jeff
-   !real(wp), allocatable :: gradient(:, :), sigma(:, :)
    type(context_type) :: ctx
    type(xtb_calculator) :: calc, fcalc
    type(structure_type), allocatable :: mfrag(:)
@@ -136,7 +134,7 @@ subroutine cube(mol,wfn,fname,basis)
    dist_cut = 200.0_wp
    
    write(*,*)
-   write(*,*)'cube file module (HN)'
+   write(*,*)'cube file module (H.N.)'
    thr = cube_pthr ! Dmat pre-screen
    step= cube_step ! grid step (Bohr)
    intcut=8.00d0   ! primitive cut
@@ -345,6 +343,8 @@ subroutine primvalf(r,dx,dy,dz,dx2,dy2,dz2,alpr2,ang,iao,nexp,a,f)
    real*8 r
    real*8 f,dx2,dy2,dz2
    real*8 dx,dy,dz,alpr2
+   real(wp), parameter :: s3 = sqrt(3.0_wp)
+   real(wp), parameter :: s3_6 = s3/6.0_wp
 
    select case (ang)
    ! s-function
@@ -359,6 +359,8 @@ subroutine primvalf(r,dx,dy,dz,dx2,dy2,dz2,alpr2,ang,iao,nexp,a,f)
        f=fastexp(nexp,a,alpr2)*dz
      case(3)
        f=fastexp(nexp,a,alpr2)*dx
+     case default
+       error stop "Angular momentum not supported"
      end select
    ! d-functions
    case(2)
@@ -368,31 +370,11 @@ subroutine primvalf(r,dx,dy,dz,dx2,dy2,dz2,alpr2,ang,iao,nexp,a,f)
      case(2)
        f=fastexp(nexp,a,alpr2)*dy*dz
      case(3)
-       f=fastexp(nexp,a,alpr2)*(3*dz2-r*r)
+       f=fastexp(nexp,a,alpr2)*s3_6*(2.0_wp*dz2-dx2-dy2)
      case(4)
        f=fastexp(nexp,a,alpr2)*dx*dz
      case(5)
-       f=fastexp(nexp,a,alpr2)*(dx2-dy2)
-     case default
-       error stop "Angular momentum not supported"
-     end select
-   ! f-functions
-   case(3)
-     select case (iao)
-     case(1)
-       f=fastexp(nexp,a,alpr2)*(dy*(3*dx2-dy2))
-     case(2)
-       f=fastexp(nexp,a,alpr2)*(dx*dy*dz)
-     case(3)
-       f=fastexp(nexp,a,alpr2)*(dy*(5*dz2-r*r))
-     case(4)
-       f=fastexp(nexp,a,alpr2)*(5*dz2*dz-3*dz*r*r)
-     case(5)
-       f=fastexp(nexp,a,alpr2)*dx*(5*dz2-r*r)
-     case(6)
-       f=fastexp(nexp,a,alpr2)*(dz*(dx2-dy2))
-     case(7)
-       f=fastexp(nexp,a,alpr2)*(dx*(dx2-3*dy2))
+       f=fastexp(nexp,a,alpr2)*0.5_wp*(dx2-dy2)
      case default
        error stop "Angular momentum not supported"
      end select
