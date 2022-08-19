@@ -1,4 +1,4 @@
-# Cube file generator for extended tight-binding methods
+# Cube file generator for xTB methods
 
 
 ## Installation

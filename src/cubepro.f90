@@ -29,6 +29,9 @@ module cubepro
       & get_density_matrix
    use tblite_xtb_calculator, only : xtb_calculator
    use tblite_xtb_singlepoint, only : xtb_singlepoint
+   use tblite_data_spin, only : get_spin_constant, read_spin_constants
+   use tblite_spin, only : spin_polarization, new_spin_polarization
+   use tblite_container, only : container_type, container_cache
    implicit none
    private
 
@@ -68,10 +71,19 @@ subroutine get_cube(input, mol, error)
    type(wavefunction_type) :: wfn
    type(wavefunction_type), allocatable :: wfx(:)
    character(len=:), allocatable :: fname
-   integer :: nspin = 1
    real(wp) :: energy
    real(wp) :: kt
+   integer :: nspin
+   logical :: sdens=.false.
+   
+   !> Spin polarization 
+   class(container_type), allocatable :: cont
+   type(spin_polarization), allocatable :: spinp
+   real(wp), allocatable :: wll(:, :, :)
 
+   nspin=2
+
+   allocate(spinp)
 
    kt=input%etemp * ktoau
 
@@ -81,6 +93,22 @@ subroutine get_cube(input, mol, error)
    call new_wavefunction(wfn, mol%nat, calc%bas%nsh, calc%bas%nao, &
       & nspin, kt)
 
+
+   ! if (config%spin_polarized_input) then
+   !   call read_spin_constants(config%sp_input)
+   ! end if
+   call get_spin_constants(wll, mol, calc%bas)
+   call new_spin_polarization(spinp, mol, wll, calc%bas%nsh_id)
+   call move_alloc(spinp, cont)
+   call calc%push_back(cont)
+
+
+
+
+
+
+
+
    call xtb_singlepoint(ctx, mol, calc, wfn, input%accuracy, energy, &
       & verbosity=input%verbosity-1)
    if (ctx%failed()) then
@@ -88,18 +116,26 @@ subroutine get_cube(input, mol, error)
       return
    end if
 
+   sdens=.false.
    fname='density.cube'
-   call cube(mol,wfn,fname,calc%bas)
+   call cube(mol,wfn,fname,calc%bas,sdens)
+
+   sdens=.true.
+   if (sdens) then
+     fname='spindensity.cube'
+   call cube(mol,wfn,fname,calc%bas,sdens)
+   endif
 
 end subroutine get_cube
 
 
-subroutine cube(mol,wfn,fname,basis)
+subroutine cube(mol,wfn,fname,basis,sdens)
    implicit none
    type(structure_type), intent(in) :: mol
    type(basis_type), intent(in) :: basis
    type(wavefunction_type), intent(in) :: wfn
    character*(*), intent(in) :: fname
+   logical, intent(in) :: sdens
 
    integer :: n
    real*8 :: xyz(3,mol%nat)
@@ -222,7 +258,13 @@ subroutine cube(mol,wfn,fname,basis)
             ! loop over shellblock NAOs
             do iao = 1, basis%nao_sh(iso + ish)
             do jao = 1, basis%nao_sh(jso + jsh)
+            if (sdens .and. size(wfn%density, DIM = 3).eq. 2) then 
+               pij = wfn%density(ii+iao,jj+jao,1)-wfn%density(ii+iao,jj+jao,2)
+            else if (.not.sdens .and. size(wfn%density, DIM = 3).eq. 2) then 
+               pij = wfn%density(ii+iao,jj+jao,1)+wfn%density(ii+iao,jj+jao,2)
+            else
                pij = wfn%density(ii+iao,jj+jao,1)
+            endif
                if (abs(pij).gt.thr)then
                   ! loop over primitives
                   do npri = 1 , icgto%nprim 
@@ -392,5 +434,27 @@ real*8 function fastexp(nexp,array,arg)
    fastexp=array(int(100.0d0*arg))
 
 end function fastexp
+
+subroutine get_spin_constants(wll, mol, bas)
+   real(wp), allocatable, intent(out) :: wll(:, :, :)
+   type(structure_type), intent(in) :: mol
+   type(basis_type), intent(in) :: bas
+
+   integer :: izp, ish, jsh, il, jl
+
+   allocate(wll(bas%nsh, bas%nsh, mol%nid), source=0.0_wp)
+
+   do izp = 1, mol%nid
+      do ish = 1, bas%nsh_id(izp)
+         il = bas%cgto(ish, izp)%ang
+         do jsh = 1, bas%nsh_id(izp)
+            jl = bas%cgto(jsh, izp)%ang
+            wll(jsh, ish, izp) = get_spin_constant(jl, il, mol%num(izp))
+         end do
+      end do
+   end do
+end subroutine get_spin_constants
+
+
 
 end module cubepro

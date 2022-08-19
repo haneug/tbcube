@@ -28,6 +28,8 @@ program main
       integer, allocatable :: input_format
       integer, allocatable :: charge
       integer, allocatable :: spin
+      integer :: nspin = 1 
+      logical :: sdens = .false.
    end type driver_config
 
    type(driver_config) :: config
@@ -119,6 +121,8 @@ subroutine help(unit)
       "    --spin <int>", "Set number of unpaired electrons, overwrites .UHF file", &
       "    --method <name>", "Parametrization of the xTB Hamiltonian to use", &
       "", "Available methods: gfn1, ipea1, gfn2 (Default: gfn2)", &
+      "    --spin-polarized,    Use spin-polarized xTB Hamiltonian", &
+      "    --sdens, Request Spin-Density, enables spin-polarization", &
       "    --acc <real>", "Accuracy of the tight-binding calculation", &
       "    --thr <real>", "Threshold for the determination of the fragments", &
       "    --etemp <real>", "Electronic temperature in Kelvin", &
@@ -251,6 +255,11 @@ subroutine get_arguments(config, error)
          allocate(config%spin)
          call get_argument_as_int(iarg, config%spin, error)
          if (allocated(error)) exit
+      case("--spin-polarized")
+         config%nspin = 2
+      case("--sdens")
+         config%nspin = 2
+         config%sdens = .true.
       case("--method")
          iarg = iarg + 1
          call get_argument(iarg, config%method)
