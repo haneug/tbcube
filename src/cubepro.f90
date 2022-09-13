@@ -47,6 +47,10 @@ module cubepro
       integer :: verbosity = 2
       !> Electronic temperature in Kelvin
       real(wp) :: etemp = 300.0_wp
+      !> Density mode requested
+      logical :: sdens = .false.
+      !> Number of spin channels
+      integer :: nspin = 1 
    end type cube_input
 
    !> Conversion factor from temperature to energy (Boltzmann's constant in atomic units)
@@ -63,7 +67,7 @@ subroutine get_cube(input, mol, error)
    !> Error handling
    type(error_type), allocatable, intent(out) :: error
 
-   integer :: spin, charge, stat, unit, ifr, nfrag, nao
+   integer :: spin, charge
    logical :: exist
    type(context_type) :: ctx
    type(xtb_calculator) :: calc, fcalc
@@ -71,10 +75,11 @@ subroutine get_cube(input, mol, error)
    type(wavefunction_type) :: wfn
    type(wavefunction_type), allocatable :: wfx(:)
    character(len=:), allocatable :: fname
+   character(len=:), allocatable :: sp_input
    real(wp) :: energy
    real(wp) :: kt
    integer :: nspin
-   logical :: sdens=.false.
+   logical :: sdens 
    
    !> Spin polarization 
    class(container_type), allocatable :: cont
@@ -86,6 +91,7 @@ subroutine get_cube(input, mol, error)
    allocate(spinp)
 
    kt=input%etemp * ktoau
+   sdens=input%sdens
 
    call get_calculator(calc, mol, input%method, error)
    if (allocated(error)) return
@@ -93,6 +99,12 @@ subroutine get_cube(input, mol, error)
    call new_wavefunction(wfn, mol%nat, calc%bas%nsh, calc%bas%nao, &
       & nspin, kt)
 
+   !> Read external spin constants
+   sp_input = "spin_param.txt"
+   inquire(file=sp_input, exist=exist)
+   if (exist) then
+     call read_spin_constants(sp_input)
+   end if
 
    ! if (config%spin_polarized_input) then
    !   call read_spin_constants(config%sp_input)
@@ -102,13 +114,6 @@ subroutine get_cube(input, mol, error)
    call move_alloc(spinp, cont)
    call calc%push_back(cont)
 
-
-
-
-
-
-
-
    call xtb_singlepoint(ctx, mol, calc, wfn, input%accuracy, energy, &
       & verbosity=input%verbosity-1)
    if (ctx%failed()) then
@@ -116,15 +121,13 @@ subroutine get_cube(input, mol, error)
       return
    end if
 
-   sdens=.false.
-   fname='density.cube'
-   call cube(mol,wfn,fname,calc%bas,sdens)
-
-   sdens=.true.
    if (sdens) then
      fname='spindensity.cube'
-   call cube(mol,wfn,fname,calc%bas,sdens)
+   else
+     fname='density.cube'
    endif
+   
+   call cube(mol,wfn,fname,calc%bas,sdens)
 
 end subroutine get_cube
 
@@ -200,15 +203,18 @@ subroutine cube(mol,wfn,fname,basis,sdens)
    ! calculate step size and number of steps (step size approx 0.2-0.5)
    ! Alternatively one could choose x=y=z=40-120
    ! x step number
-   xst=floor((abs(px)+abs(nx))/step)
+   !xst=floor((abs(px)+abs(nx))/step)
+   xst=120
    ! x step size
    xinc=(abs(px)+abs(nx))/xst
    ! y step number
-   yst=floor((abs(py)+abs(ny))/step)
+   !yst=floor((abs(py)+abs(ny))/step)
+   yst=120
    ! y step size
    yinc=(abs(py)+abs(ny))/yst
    ! z step number
-   zst=floor((abs(pz)+abs(nz))/step)
+   !zst=floor((abs(pz)+abs(nz))/step)
+   zst=120
    ! z step size
    zinc=(abs(pz)+abs(nz))/zst
    write(*,*)'Total # of points', (xst+1)*(yst+1)*(zst+1)
@@ -236,18 +242,20 @@ subroutine cube(mol,wfn,fname,basis,sdens)
    ! loop over atoms 
    do iat=1, n
    do jat=1, n
-      ! index shell offset for each of the atoms
+      ! index shell offset for each atom
       iso = basis%ish_at(iat)
       jso = basis%ish_at(jat)
-      ! Atom type
+      ! Atom number
       izp=mol%id(iat)
       jzp=mol%id(jat)
+      ! Aufpunkt of the GTOs
       xyza(1:3)=xyz(1:3,iat)
       xyzb(1:3)=xyz(1:3,jat)
+      ! Calculte the diastance between Aufpunkt
       rab=(xyza(1)-xyzb(1))**2  &
       &      +(xyza(2)-xyzb(2))**2  &
       &      +(xyza(3)-xyzb(3))**2
-      ! loop over shells
+      ! loop over shells at each atom
       if(rab.lt.dist_cut)then
          do ish=1, basis%nsh_at(iat)
          do jsh=1, basis%nsh_at(jat)
@@ -258,10 +266,13 @@ subroutine cube(mol,wfn,fname,basis,sdens)
             ! loop over shellblock NAOs
             do iao = 1, basis%nao_sh(iso + ish)
             do jao = 1, basis%nao_sh(jso + jsh)
+            ! Case: calculate spin polarized spin density
             if (sdens .and. size(wfn%density, DIM = 3).eq. 2) then 
                pij = wfn%density(ii+iao,jj+jao,1)-wfn%density(ii+iao,jj+jao,2)
+            ! Case: calculate spin polarized density
             else if (.not.sdens .and. size(wfn%density, DIM = 3).eq. 2) then 
                pij = wfn%density(ii+iao,jj+jao,1)+wfn%density(ii+iao,jj+jao,2)
+            ! Case: calculate density
             else
                pij = wfn%density(ii+iao,jj+jao,1)
             endif

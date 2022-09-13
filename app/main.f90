@@ -28,8 +28,6 @@ program main
       integer, allocatable :: input_format
       integer, allocatable :: charge
       integer, allocatable :: spin
-      integer :: nspin = 1 
-      logical :: sdens = .false.
    end type driver_config
 
    type(driver_config) :: config
@@ -271,10 +269,6 @@ subroutine get_arguments(config, error)
          iarg = iarg + 1
          call get_argument_as_real(iarg, config%accuracy, error)
          if (allocated(error)) exit
-      !case("--thr")
-      !   iarg = iarg + 1
-      !   call get_argument_as_real(iarg, config%thr, error)
-      !   if (allocated(error)) exit
       case("--etemp")
          iarg = iarg + 1
          call get_argument_as_real(iarg, config%etemp, error)
