@@ -86,12 +86,12 @@ subroutine get_cube(input, mol, error)
    type(spin_polarization), allocatable :: spinp
    real(wp), allocatable :: wll(:, :, :)
 
-   nspin=2
 
    allocate(spinp)
 
    kt=input%etemp * ktoau
    sdens=input%sdens
+   nspin=input%nspin
 
    call get_calculator(calc, mol, input%method, error)
    if (allocated(error)) return
@@ -128,6 +128,9 @@ subroutine get_cube(input, mol, error)
    endif
    
    call cube(mol,wfn,fname,calc%bas,sdens)
+   
+   fname='homo.cube'
+   call mocube(mol,wfn,fname,calc%bas)
 
 end subroutine get_cube
 
@@ -204,19 +207,19 @@ subroutine cube(mol,wfn,fname,basis,sdens)
    ! Alternatively one could choose x=y=z=40-120
    ! x step number
    !xst=floor((abs(px)+abs(nx))/step)
-   xst=120
+   xst=119
    ! x step size
-   xinc=(abs(px)+abs(nx))/xst
+   xinc=abs(px-nx)/xst
    ! y step number
    !yst=floor((abs(py)+abs(ny))/step)
-   yst=120
+   yst=119
    ! y step size
-   yinc=(abs(py)+abs(ny))/yst
+   yinc=abs(py-ny)/yst
    ! z step number
    !zst=floor((abs(pz)+abs(nz))/step)
-   zst=120
+   zst=119
    ! z step size
-   zinc=(abs(pz)+abs(nz))/zst
+   zinc=abs(pz-nz)/zst
    write(*,*)'Total # of points', (xst+1)*(yst+1)*(zst+1)
    
    ! Volume for each gridpoint
@@ -355,6 +358,198 @@ subroutine cube(mol,wfn,fname,basis,sdens)
    102   format(I5,4F16.6)
  
  end subroutine cube
+
+subroutine mocube(mol,wfn,fname,basis)
+   implicit none
+   type(structure_type), intent(in) :: mol
+   type(basis_type), intent(in) :: basis
+   type(wavefunction_type), intent(in) :: wfn
+   character*(*), intent(in) :: fname
+
+   integer :: n
+   real*8 :: xyz(3,mol%nat)
+   type(cgto_type) :: icgto, jcgto
+
+   real*4 ,allocatable  ::cb   (:,:,:)
+   real*8 ,allocatable  ::array(:)
+
+   integer i,j,k,ii,jj,npri,nprj,nexp
+   integer ish,jsh,izp,jzp,iao,jao,iso,jso
+   integer iat,jat,xst,yst,zst,cou,iprimcount,jprimcount
+   real*8 thr,thr3,intcut,intcut2,dist_cut
+   real*8 w0,w1,t0,t1,r,r2,val,rab,ccc,gridp(3),xyza(3),xyzb(3),dr3
+   real*8 step,px,py,pz,xinc,yinc,zinc,nx,ny,nz,vv(1),v,est,nfod
+   real*8 f1,f2,dx1,dy1,dz1,dx2,dy2,dz2,r1,dum,r1xy,r2xy
+   real*8 dxx1,dyy1,dzz1,dxx2,dyy2,dzz2,ar1,ar2
+   real*8 cij,ccoef
+
+
+   real(wp) :: cube_step, cube_pthr
+   integer ifile
+
+
+   n=mol%nat
+   xyz=mol%xyz
+
+!  grid spacing for cube file
+   cube_step = 0.5_wp
+!  density matrix neglect threshold
+   cube_pthr = 0.01_wp
+!  distance criteria
+   dist_cut = 200.0_wp
+   
+   write(*,*)
+   write(*,*)'cube file module (H.N.)'
+   thr = cube_pthr ! Dmat pre-screen
+   step= cube_step ! grid step (Bohr)
+   intcut=8.00d0   ! primitive cut
+   intcut2=2.0d0*intcut
+
+!  auxiliary array for fast density evaluation
+   nexp=100*int(intcut2) ! size of exp array ie arguments 0:nexp
+   allocate(array(0:nexp))
+   do i=0,nexp
+      dum=float(i)/100.0
+      array(i)=exp(-dum)
+   enddo
+
+   write(*,'('' cube_pthr     : '',f7.3)')cube_pthr
+   write(*,'('' cube_step     : '',f7.3)')cube_step
+
+   px=maxval(xyz(1,1:n))+3.0
+   py=maxval(xyz(2,1:n))+3.0
+   pz=maxval(xyz(3,1:n))+3.0
+   nx=minval(xyz(1,1:n))-3.0
+   ny=minval(xyz(2,1:n))-3.0
+   nz=minval(xyz(3,1:n))-3.0
+   write(*,*)'Grid Boundaries (x y z) :'
+   write(*,*)px,py,pz
+   write(*,*)nx,ny,nz
+
+   ! calculate step size and number of steps (step size approx 0.2-0.5)
+   ! Alternatively one could choose x=y=z=40-120
+   ! x step number
+   !xst=floor((abs(px)+abs(nx))/step)
+   xst=119
+   ! x step size
+   xinc=abs(px-nx)/xst
+   ! y step number
+   !yst=floor((abs(py)+abs(ny))/step)
+   yst=119
+   ! y step size
+   yinc=abs(py-ny)/yst
+   ! z step number
+   !zst=floor((abs(pz)+abs(nz))/step)
+   zst=119
+   ! z step size
+   zinc=abs(pz-nz)/zst
+   write(*,*)'Total # of points', (xst+1)*(yst+1)*(zst+1)
+   
+   ! Volume for each gridpoint
+   dr3=xinc*yinc*zinc
+
+   write(*,*)'writing ',trim(fname)
+   open(file=fname, newunit=ifile)
+   write(ifile,*)'Cubepro cube file'
+   write(ifile,*)'By H.N.'
+   write(ifile,101)n,nx,ny,nz
+   write(ifile,101)xst+1,xinc,0.0,0.0
+   write(ifile,101)yst+1,0.0,yinc,0.0
+   write(ifile,101)zst+1,0.0,0.0,zinc
+   do i=1,n
+      write(ifile,102)mol%num(mol%id(i)),0.0,xyz(1,i),xyz(2,i),xyz(3,i)
+   enddo
+
+   allocate(cb(0:zst,0:yst,0:xst))
+
+   cb  =0
+
+   !     Dmat loop         -----------------------------------
+   ! loop over atoms 
+   do iat=1, n
+      ! index shell offset for each atom
+      iso = basis%ish_at(iat)
+      ! Atom number
+      izp=mol%id(iat)
+      ! Aufpunkt of the GTOs
+      xyza(1:3)=xyz(1:3,iat)
+      ! Calculte the diastance between Aufpunkt
+      ! loop over shells at each atom
+         do ish=1, basis%nsh_at(iat)
+            ii = basis%iao_sh(iso + ish)
+            icgto = basis%cgto(ish,izp)
+            ! loop over shellblock NAOs
+            do iao = 1, basis%nao_sh(iso + ish)
+            ! Case: calculate spin polarized spin density
+            !if (size(wfn%coeff, DIM = 3).eq. 2) then 
+            cij = wfn%coeff(ii+iao,wfn%homo(1),1)
+            ! Case: calculate spin polarized density
+            !else if (size(wfn%density, DIM = 3).eq. 2) then 
+               !pij = wfn%density(ii+iao,jj+jao,1)+wfn%density(ii+iao,jj+jao,2)
+            ! Case: calculate density
+            !else
+               !pij = wfn%density(ii+iao,jj+jao,1)
+            !endif
+                  ! loop over primitives
+                  do npri = 1 , icgto%nprim 
+                  ccoef = cij* icgto%coeff(npri)
+                     ! grid loops
+                     gridp(1)=nx
+                     do i=0,xst
+                        gridp(1)=nx+(xinc*i)
+                        dx1=xyza(1)-gridp(1)
+                        dxx1=dx1*dx1
+                        gridp(2)=ny
+                        do j=0,yst
+                           gridp(2)=ny+(yinc*j)
+                           dy1=xyza(2)-gridp(2)
+                           dyy1=dy1*dy1
+                           gridp(3)=nz
+                           r1xy=dxx1+dyy1
+                           do k=0,zst
+                              gridp(3)=nz+(zinc*k)
+                              dz1=xyza(3)-gridp(3)
+                              dzz1=dz1*dz1
+                              r1=r1xy+dzz1
+                              ar1=icgto%alpha(npri)*r1
+                              if(ar1.lt.intcut2)then  ! exp(-16) < 1.d-7 i.e. zero
+                                 call primvalf(r1,dx1,dy1,dz1,dxx1,dyy1,dzz1,ar1, &
+                                    &             icgto%ang,iao,nexp,array,f1)
+                                    cb(k,j,i)=cb(k,j,i)+ccoef*f1
+                              endif
+                           enddo
+                        enddo
+                     enddo
+                  enddo
+            enddo
+         enddo
+   enddo
+
+   !     Dmat loop end     -----------------------------------
+   
+   ! write x y z x y z\n
+   cou=1
+   do i=0,xst
+      do j=0,yst
+         do k=0,zst
+            if (cou.lt.6) then
+               write(ifile,'(E14.8,1X)',advance='no')cb(k,j,i)
+               cou=cou+1
+            else
+               write(ifile,'(E14.8)')cb(k,j,i)
+               cou=1
+            endif
+         enddo
+      enddo
+   enddo
+   close(ifile)
+
+   101   format(I5,3F16.6)
+   102   format(I5,4F16.6)
+ 
+ end subroutine mocube
+
+
 
 
 subroutine primval(dx,dy,dz,dx2,dy2,dz2,alpr2,lao,f)
