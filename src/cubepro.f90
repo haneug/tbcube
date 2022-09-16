@@ -48,7 +48,13 @@ module cubepro
       !> Electronic temperature in Kelvin
       real(wp) :: etemp = 300.0_wp
       !> Density mode requested
+      logical :: dens = .false.
+      !> Spin Density mode requested
       logical :: sdens = .false.
+      !> HOMO Requested
+      logical :: homo = .false.
+      !> LUMO Requested
+      logical :: lumo = .false.
       !> Number of spin channels
       integer :: nspin = 1 
    end type cube_input
@@ -67,7 +73,6 @@ subroutine get_cube(input, mol, error)
    !> Error handling
    type(error_type), allocatable, intent(out) :: error
 
-   integer :: spin, charge
    logical :: exist
    type(context_type) :: ctx
    type(xtb_calculator) :: calc, fcalc
@@ -80,6 +85,11 @@ subroutine get_cube(input, mol, error)
    real(wp) :: kt
    integer :: nspin
    logical :: sdens 
+   logical :: dens 
+   logical :: homo 
+   logical :: lumo 
+   integer :: spin
+   integer :: nmo
    
    !> Spin polarization 
    class(container_type), allocatable :: cont
@@ -91,6 +101,9 @@ subroutine get_cube(input, mol, error)
 
    kt=input%etemp * ktoau
    sdens=input%sdens
+   dens=input%dens
+   homo=input%homo
+   lumo=input%lumo
    nspin=input%nspin
 
    call get_calculator(calc, mol, input%method, error)
@@ -99,21 +112,21 @@ subroutine get_cube(input, mol, error)
    call new_wavefunction(wfn, mol%nat, calc%bas%nsh, calc%bas%nao, &
       & nspin, kt)
 
-   !> Read external spin constants
-   sp_input = "spin_param.txt"
-   inquire(file=sp_input, exist=exist)
-   if (exist) then
-     call read_spin_constants(sp_input)
+   if (nspin.eq.2) then
+      !> Read external spin constants
+      sp_input = "spin_param.txt"
+      inquire(file=sp_input, exist=exist)
+      if (exist) then
+         call read_spin_constants(sp_input)
+      end if
+      !> Allocate spin constants
+      call get_spin_constants(wll, mol, calc%bas)
+      call new_spin_polarization(spinp, mol, wll, calc%bas%nsh_id)
+      call move_alloc(spinp, cont)
+      call calc%push_back(cont)
    end if
 
-   ! if (config%spin_polarized_input) then
-   !   call read_spin_constants(config%sp_input)
-   ! end if
-   call get_spin_constants(wll, mol, calc%bas)
-   call new_spin_polarization(spinp, mol, wll, calc%bas%nsh_id)
-   call move_alloc(spinp, cont)
-   call calc%push_back(cont)
-
+   !> perform single point energy calculation
    call xtb_singlepoint(ctx, mol, calc, wfn, input%accuracy, energy, &
       & verbosity=input%verbosity-1)
    if (ctx%failed()) then
@@ -121,16 +134,57 @@ subroutine get_cube(input, mol, error)
       return
    end if
 
+   !> Density Plotting Mode
    if (sdens) then
-     fname='spindensity.cube'
-   else
-     fname='density.cube'
+      fname='spindensity.cube'
+      call cube(mol,wfn,fname,calc%bas,sdens)
+   endif
+
+   !> Spin Density Plotting Mode
+   if (dens) then
+      fname='density.cube'
+      call cube(mol,wfn,fname,calc%bas,sdens)
    endif
    
-   call cube(mol,wfn,fname,calc%bas,sdens)
-   
-   fname='homo.cube'
-   call mocube(mol,wfn,fname,calc%bas)
+   !> Plotting MOs
+
+   !> HOMO
+   if (homo) then
+      if (nspin.eq.1) then
+         fname='homo.cube'
+         spin=1
+         nmo=wfn%homo(spin)
+         call mocube(mol,wfn,fname,calc%bas,nmo,spin)
+      else if (nspin.eq.2) then
+         fname='homo_alpha.cube'
+         spin=1
+         nmo=wfn%homo(spin)
+         call mocube(mol,wfn,fname,calc%bas,nmo,spin)
+         fname='homo_beta.cube'
+         spin=2
+         nmo=wfn%homo(spin)
+         call mocube(mol,wfn,fname,calc%bas,nmo,spin)
+      endif
+   endif
+
+   !> LUMO
+   if (lumo) then
+      if (nspin.eq.1) then
+         fname='lumo.cube'
+         spin=1
+         nmo=wfn%homo(spin)+1
+         call mocube(mol,wfn,fname,calc%bas,nmo,spin)
+      else if (nspin.eq.2) then
+         fname='lumo_alpha.cube'
+         spin=1
+         nmo=wfn%homo(spin)+1
+         call mocube(mol,wfn,fname,calc%bas,nmo,spin)
+         fname='lumo_beta.cube'
+         spin=2
+         nmo=wfn%homo(spin)+1
+         call mocube(mol,wfn,fname,calc%bas,nmo,spin)
+      endif
+   endif
 
 end subroutine get_cube
 
@@ -359,12 +413,14 @@ subroutine cube(mol,wfn,fname,basis,sdens)
  
  end subroutine cube
 
-subroutine mocube(mol,wfn,fname,basis)
+subroutine mocube(mol,wfn,fname,basis,nmo,spin)
    implicit none
    type(structure_type), intent(in) :: mol
    type(basis_type), intent(in) :: basis
    type(wavefunction_type), intent(in) :: wfn
    character*(*), intent(in) :: fname
+   integer, intent(in) :: nmo
+   integer, intent(in) :: spin
 
    integer :: n
    real*8 :: xyz(3,mol%nat)
@@ -473,23 +529,13 @@ subroutine mocube(mol,wfn,fname,basis)
       izp=mol%id(iat)
       ! Aufpunkt of the GTOs
       xyza(1:3)=xyz(1:3,iat)
-      ! Calculte the diastance between Aufpunkt
       ! loop over shells at each atom
          do ish=1, basis%nsh_at(iat)
             ii = basis%iao_sh(iso + ish)
             icgto = basis%cgto(ish,izp)
             ! loop over shellblock NAOs
             do iao = 1, basis%nao_sh(iso + ish)
-            ! Case: calculate spin polarized spin density
-            !if (size(wfn%coeff, DIM = 3).eq. 2) then 
-            cij = wfn%coeff(ii+iao,wfn%homo(1),1)
-            ! Case: calculate spin polarized density
-            !else if (size(wfn%density, DIM = 3).eq. 2) then 
-               !pij = wfn%density(ii+iao,jj+jao,1)+wfn%density(ii+iao,jj+jao,2)
-            ! Case: calculate density
-            !else
-               !pij = wfn%density(ii+iao,jj+jao,1)
-            !endif
+               cij = wfn%coeff(ii+iao,nmo,spin)
                   ! loop over primitives
                   do npri = 1 , icgto%nprim 
                   ccoef = cij* icgto%coeff(npri)
