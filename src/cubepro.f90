@@ -55,6 +55,8 @@ module cubepro
       logical :: homo = .false.
       !> LUMO Requested
       logical :: lumo = .false.
+      !> Occ MOs Requested
+      logical :: occ = .false.
       !> Number of spin channels
       integer :: nspin = 1 
    end type cube_input
@@ -88,8 +90,10 @@ subroutine get_cube(input, mol, error)
    logical :: dens 
    logical :: homo 
    logical :: lumo 
+   logical :: occ 
    integer :: spin
    integer :: nmo
+   character(len=1024) :: nmo_string
    
    !> Spin polarization 
    class(container_type), allocatable :: cont
@@ -103,6 +107,7 @@ subroutine get_cube(input, mol, error)
    sdens=input%sdens
    dens=input%dens
    homo=input%homo
+   occ=input%occ
    lumo=input%lumo
    nspin=input%nspin
 
@@ -183,6 +188,31 @@ subroutine get_cube(input, mol, error)
          spin=2
          nmo=wfn%homo(spin)+1
          call mocube(mol,wfn,fname,calc%bas,nmo,spin)
+      endif
+   endif
+
+   !> All Occupied MOs
+   if (occ) then
+      if (nspin.eq.1) then
+         spin=1
+         do nmo=1, wfn%homo(spin)
+           write(nmo_string, '(I0)') nmo
+           fname=trim(nmo_string) // '.cube'
+           call mocube(mol,wfn,fname,calc%bas,nmo,spin)
+         end do
+      else if (nspin.eq.2) then
+         spin=1
+         do nmo=1, wfn%homo(spin)
+           write(nmo_string, '(I0)') nmo
+           fname=trim(nmo_string) // '_alpha.cube'
+           call mocube(mol,wfn,fname,calc%bas,nmo,spin)
+         end do
+         spin=2
+         do nmo=1, wfn%homo(spin)
+           write(nmo_string, '(I0)') nmo
+           fname=trim(nmo_string) // '_beta.cube'
+           call mocube(mol,wfn,fname,calc%bas,nmo,spin)
+         end do
       endif
    endif
 

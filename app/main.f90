@@ -267,6 +267,8 @@ subroutine get_arguments(config, error)
          config%dens = .true.
       case("--homo")
          config%homo = .true.
+      case("--occ")
+         config%occ = .true.
       case("--lumo")
          config%lumo = .true.
       case("--method")
