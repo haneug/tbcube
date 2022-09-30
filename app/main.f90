@@ -120,14 +120,13 @@ subroutine help(unit)
       "    --method <name>", "Parametrization of the xTB Hamiltonian to use", &
       "", "Available methods: gfn1, ipea1, gfn2 (Default: gfn2)", &
       "    --spin-polarized",    "Use spin-polarized xTB Hamiltonian", &
-      "    --sdens", "Request Spin-Density - enables spin-polarization", &
+      "    --sdens", "Request Spin-Density - activates spin-polarization", &
       "    --dens", "Request Density", &
       "    --homo", "Request HOMO", &
       "    --lumo", "Request LUMO", &
       "    --occ", "Request all occupied MOs", &
       "    --res <int>", "Resolution of the cube file (default: 120³)", &
       "    --acc <real>", "Accuracy of the tight-binding calculation", &
-      "    --thr <real>", "Threshold for the determination of the fragments", &
       "    --etemp <real>", "Electronic temperature in Kelvin", &
       "-i, --input <format>", "Hint for the format of the input file", &
       "    --version", "Print program version and exit", &
@@ -213,6 +212,10 @@ subroutine get_arguments(config, error)
    iarg = 0
    getopts = .true.
    narg = command_argument_count()
+   if (narg == 0) then
+     call help(output_unit)
+     stop
+   end if
    do while(iarg < narg)
       iarg = iarg + 1
       call get_argument(iarg, arg)
