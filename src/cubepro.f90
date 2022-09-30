@@ -161,11 +161,11 @@ subroutine get_cube(input, mol, error)
          nmo=wfn%homo(spin)
          call mocube(mol,wfn,fname,calc%bas,nmo,spin)
       else if (nspin.eq.2) then
-         fname='homo_alpha.cube'
+         fname='homo.alpha.cube'
          spin=1
          nmo=wfn%homo(spin)
          call mocube(mol,wfn,fname,calc%bas,nmo,spin)
-         fname='homo_beta.cube'
+         fname='homo.beta.cube'
          spin=2
          nmo=wfn%homo(spin)
          call mocube(mol,wfn,fname,calc%bas,nmo,spin)
@@ -180,11 +180,11 @@ subroutine get_cube(input, mol, error)
          nmo=wfn%homo(spin)+1
          call mocube(mol,wfn,fname,calc%bas,nmo,spin)
       else if (nspin.eq.2) then
-         fname='lumo_alpha.cube'
+         fname='lumo.alpha.cube'
          spin=1
          nmo=wfn%homo(spin)+1
          call mocube(mol,wfn,fname,calc%bas,nmo,spin)
-         fname='lumo_beta.cube'
+         fname='lumo.beta.cube'
          spin=2
          nmo=wfn%homo(spin)+1
          call mocube(mol,wfn,fname,calc%bas,nmo,spin)
@@ -197,20 +197,20 @@ subroutine get_cube(input, mol, error)
          spin=1
          do nmo=1, wfn%homo(spin)
            write(nmo_string, '(I0)') nmo
-           fname=trim(nmo_string) // '.cube'
+           fname=trim(nmo_string) // '.mo.cube'
            call mocube(mol,wfn,fname,calc%bas,nmo,spin)
          end do
       else if (nspin.eq.2) then
          spin=1
          do nmo=1, wfn%homo(spin)
            write(nmo_string, '(I0)') nmo
-           fname=trim(nmo_string) // '_alpha.cube'
+           fname=trim(nmo_string) // '.alpha.cube'
            call mocube(mol,wfn,fname,calc%bas,nmo,spin)
          end do
          spin=2
          do nmo=1, wfn%homo(spin)
            write(nmo_string, '(I0)') nmo
-           fname=trim(nmo_string) // '_beta.cube'
+           fname=trim(nmo_string) // '.beta.cube'
            call mocube(mol,wfn,fname,calc%bas,nmo,spin)
          end do
       endif
@@ -260,7 +260,7 @@ subroutine cube(mol,wfn,fname,basis,sdens)
    dist_cut = 200.0_wp
    
    write(*,*)
-   write(*,*)'cube file module (H.N.)'
+   write(*,*)'cube file module'
    thr = cube_pthr ! Dmat pre-screen
    step= cube_step ! grid step (Bohr)
    intcut=8.00d0   ! primitive cut
@@ -311,8 +311,7 @@ subroutine cube(mol,wfn,fname,basis,sdens)
 
    write(*,*)'writing ',trim(fname)
    open(file=fname, newunit=ifile)
-   write(ifile,*)'Cubepro cube file'
-   write(ifile,*)'By H.N.'
+   write(ifile,*)'Cubepro cube file generator'
    write(ifile,101)n,nx,ny,nz
    write(ifile,101)xst+1,xinc,0.0,0.0
    write(ifile,101)yst+1,0.0,yinc,0.0
@@ -485,7 +484,7 @@ subroutine mocube(mol,wfn,fname,basis,nmo,spin)
    dist_cut = 200.0_wp
    
    write(*,*)
-   write(*,*)'cube file module (H.N.)'
+   write(*,*)'cube file module'
    thr = cube_pthr ! Dmat pre-screen
    step= cube_step ! grid step (Bohr)
    intcut=8.00d0   ! primitive cut
@@ -536,8 +535,7 @@ subroutine mocube(mol,wfn,fname,basis,nmo,spin)
 
    write(*,*)'writing ',trim(fname)
    open(file=fname, newunit=ifile)
-   write(ifile,*)'Cubepro cube file'
-   write(ifile,*)'By H.N.'
+   write(ifile,*)'Cubepro cube file generator'
    write(ifile,101)n,nx,ny,nz
    write(ifile,101)xst+1,xinc,0.0,0.0
    write(ifile,101)yst+1,0.0,yinc,0.0
