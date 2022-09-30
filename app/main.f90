@@ -1,4 +1,4 @@
-! This file is part of cubepro.
+! This file is part of tbcube.
 ! SPDX-Identifier: Apache-2.0
 !
 ! Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,10 +18,10 @@ program main
    use, intrinsic :: iso_fortran_env, only : output_unit, error_unit, input_unit
    use mctc_env, only : error_type, fatal_error, get_argument, wp
    use mctc_io, only : structure_type, read_structure, filetype, get_filetype
-   use cubepro, only : get_cube, cube_input
-   use cubepro_version, only : get_cubepro_version
+   use tbcube, only : get_cube, cube_input
+   use tbcube_version, only : get_tbcube_version
    implicit none
-   character(len=*), parameter :: prog_name = "cubepro"
+   character(len=*), parameter :: prog_name = "tbcube"
 
    type, extends(cube_input) :: driver_config
       character(len=:), allocatable :: input
@@ -140,7 +140,7 @@ subroutine version(unit)
    integer, intent(in) :: unit
    character(len=:), allocatable :: version_string
 
-   call get_cubepro_version(string=version_string)
+   call get_tbcube_version(string=version_string)
    write(unit, '(a, *(1x, a))') &
       & prog_name, "version", version_string
 

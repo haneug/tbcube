@@ -1,6 +1,6 @@
-name = "cubepro"
+name = "tbcube"
 version = "0.1.0"
-license = "Apache-2.0"
+license = ""
 description = "Cube file generation for extended tight-binding methods"
 
 [dependencies]

@@ -1,4 +1,4 @@
-! This file is part of cubepro.
+! This file is part of tbcube.
 ! SPDX-Identifier: Apache-2.0
 !
 ! Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,11 +14,11 @@
 ! limitations under the License.
 
 !> Implementation of the dimer projection method for extended tight binding methods.
-module cubepro
+module tbcube
    use mctc_env, only : error_type, fatal_error, get_argument, wp
    use mctc_io, only : structure_type, new
    use mctc_io_convert, only : autoev
-   use cubepro_xtb, only : get_calculator
+   use tbcube_xtb, only : get_calculator
    use tblite_basis_type, only : get_cutoff, basis_type, cgto_type, new_basis
    use tblite_blas, only : dot, gemv, gemm
    use tblite_context_type, only : context_type
@@ -261,6 +261,7 @@ subroutine cube(mol,wfn,fname,basis,sdens)
    
    write(*,*)
    write(*,*)'cube file module'
+   write(*,*)'wavefunction from tblite'
    thr = cube_pthr ! Dmat pre-screen
    step= cube_step ! grid step (Bohr)
    intcut=8.00d0   ! primitive cut
@@ -311,7 +312,8 @@ subroutine cube(mol,wfn,fname,basis,sdens)
 
    write(*,*)'writing ',trim(fname)
    open(file=fname, newunit=ifile)
-   write(ifile,*)'Cubepro cube file generator'
+   write(ifile,*)'cube file generator'
+   write(ifile,*)'by H.N.'
    write(ifile,101)n,nx,ny,nz
    write(ifile,101)xst+1,xinc,0.0,0.0
    write(ifile,101)yst+1,0.0,yinc,0.0
@@ -485,6 +487,7 @@ subroutine mocube(mol,wfn,fname,basis,nmo,spin)
    
    write(*,*)
    write(*,*)'cube file module'
+   write(*,*)'wavefunction from tblite'
    thr = cube_pthr ! Dmat pre-screen
    step= cube_step ! grid step (Bohr)
    intcut=8.00d0   ! primitive cut
@@ -535,7 +538,8 @@ subroutine mocube(mol,wfn,fname,basis,nmo,spin)
 
    write(*,*)'writing ',trim(fname)
    open(file=fname, newunit=ifile)
-   write(ifile,*)'Cubepro cube file generator'
+   write(ifile,*)'cube file generator'
+   write(ifile,*)'by H.N.'
    write(ifile,101)n,nx,ny,nz
    write(ifile,101)xst+1,xinc,0.0,0.0
    write(ifile,101)yst+1,0.0,yinc,0.0
@@ -737,4 +741,4 @@ end subroutine get_spin_constants
 
 
 
-end module cubepro
+end module tbcube

@@ -12,5 +12,5 @@ fpm build
 
 The resulting executable can be used to plot cube files with the extended tight binding (xTB) methods:
 
-cubepro struc.xyz --occ
+tbcube struc.xyz --occ
 

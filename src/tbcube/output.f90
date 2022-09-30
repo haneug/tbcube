@@ -1,4 +1,4 @@
-! This file is part of cubepro.
+! This file is part of tbcube.
 ! SPDX-Identifier: Apache-2.0
 !
 ! Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +14,7 @@
 ! limitations under the License.
 
 !> Helper routines to for output generation
-module cubepro_output
+module tbcube_output
    implicit none
    private
 
@@ -119,4 +119,4 @@ pure function to_string(val) result(string)
    string = buffer(pos:)
 end function to_string
 
-end module cubepro_output
+end module tbcube_output

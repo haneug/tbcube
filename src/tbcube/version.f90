@@ -1,4 +1,4 @@
-! This file is part of cubepro.
+! This file is part of tbcube.
 ! SPDX-Identifier: Apache-2.0
 !
 ! Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,46 +14,46 @@
 ! limitations under the License.
 
 !> Version information for this project
-module cubepro_version
+module tbcube_version
    implicit none
    private
 
-   public :: cubepro_version_string, cubepro_version_compact
-   public :: get_cubepro_version
+   public :: tbcube_version_string, tbcube_version_compact
+   public :: get_tbcube_version
 
 
-   !> String representation of the cubepro version
-   character(len=*), parameter :: cubepro_version_string = "0.1.0"
+   !> String representation of the tbcube version
+   character(len=*), parameter :: tbcube_version_string = "0.1.0"
 
-   !> Numeric representation of the cubepro version
-   integer, parameter :: cubepro_version_compact(3) = [0, 1, 0]
+   !> Numeric representation of the tbcube version
+   integer, parameter :: tbcube_version_compact(3) = [0, 1, 0]
 
 contains
 
-!> Getter function to retrieve cubepro version
-subroutine get_cubepro_version(major, minor, patch, string)
-   !> Major version number of the cubepro version
+!> Getter function to retrieve tbcube version
+subroutine get_tbcube_version(major, minor, patch, string)
+   !> Major version number of the tbcube version
    integer, intent(out), optional :: major
-   !> Minor version number of the cubepro version
+   !> Minor version number of the tbcube version
    integer, intent(out), optional :: minor
-   !> Patch version number of the cubepro version
+   !> Patch version number of the tbcube version
    integer, intent(out), optional :: patch
-   !> String representation of the cubepro version
+   !> String representation of the tbcube version
    character(len=:), allocatable, intent(out), optional :: string
 
    if (present(major)) then
-      major = cubepro_version_compact(1)
+      major = tbcube_version_compact(1)
    end if
    if (present(minor)) then
-      minor = cubepro_version_compact(2)
+      minor = tbcube_version_compact(2)
    end if
    if (present(patch)) then
-      patch = cubepro_version_compact(3)
+      patch = tbcube_version_compact(3)
    end if
    if (present(string)) then
-      string = cubepro_version_string
+      string = tbcube_version_string
    end if
 
-end subroutine get_cubepro_version
+end subroutine get_tbcube_version
 
-end module cubepro_version
+end module tbcube_version
