@@ -59,6 +59,8 @@ module tbcube
       logical :: occ = .false.
       !> Number of spin channels
       integer :: nspin = 1 
+      !> Resolution of the cube file
+      integer :: res = 120
    end type cube_input
 
    !> Conversion factor from temperature to energy (Boltzmann's constant in atomic units)
@@ -93,6 +95,7 @@ subroutine get_cube(input, mol, error)
    logical :: occ 
    integer :: spin
    integer :: nmo
+   integer :: res
    character(len=1024) :: nmo_string
    
    !> Spin polarization 
@@ -110,6 +113,7 @@ subroutine get_cube(input, mol, error)
    occ=input%occ
    lumo=input%lumo
    nspin=input%nspin
+   res=input%res
 
    call get_calculator(calc, mol, input%method, error)
    if (allocated(error)) return
@@ -142,13 +146,13 @@ subroutine get_cube(input, mol, error)
    !> Density Plotting Mode
    if (sdens) then
       fname='spindensity.cube'
-      call cube(mol,wfn,fname,calc%bas,sdens)
+      call cube(mol,wfn,fname,calc%bas,sdens,res)
    endif
 
    !> Spin Density Plotting Mode
    if (dens) then
       fname='density.cube'
-      call cube(mol,wfn,fname,calc%bas,sdens)
+      call cube(mol,wfn,fname,calc%bas,sdens,res)
    endif
    
    !> Plotting MOs
@@ -159,16 +163,16 @@ subroutine get_cube(input, mol, error)
          fname='homo.cube'
          spin=1
          nmo=wfn%homo(spin)
-         call mocube(mol,wfn,fname,calc%bas,nmo,spin)
+         call mocube(mol,wfn,fname,calc%bas,nmo,spin,res)
       else if (nspin.eq.2) then
          fname='homo.alpha.cube'
          spin=1
          nmo=wfn%homo(spin)
-         call mocube(mol,wfn,fname,calc%bas,nmo,spin)
+         call mocube(mol,wfn,fname,calc%bas,nmo,spin,res)
          fname='homo.beta.cube'
          spin=2
          nmo=wfn%homo(spin)
-         call mocube(mol,wfn,fname,calc%bas,nmo,spin)
+         call mocube(mol,wfn,fname,calc%bas,nmo,spin,res)
       endif
    endif
 
@@ -178,16 +182,16 @@ subroutine get_cube(input, mol, error)
          fname='lumo.cube'
          spin=1
          nmo=wfn%homo(spin)+1
-         call mocube(mol,wfn,fname,calc%bas,nmo,spin)
+         call mocube(mol,wfn,fname,calc%bas,nmo,spin,res)
       else if (nspin.eq.2) then
          fname='lumo.alpha.cube'
          spin=1
          nmo=wfn%homo(spin)+1
-         call mocube(mol,wfn,fname,calc%bas,nmo,spin)
+         call mocube(mol,wfn,fname,calc%bas,nmo,spin,res)
          fname='lumo.beta.cube'
          spin=2
          nmo=wfn%homo(spin)+1
-         call mocube(mol,wfn,fname,calc%bas,nmo,spin)
+         call mocube(mol,wfn,fname,calc%bas,nmo,spin,res)
       endif
    endif
 
@@ -198,20 +202,20 @@ subroutine get_cube(input, mol, error)
          do nmo=1, wfn%homo(spin)
            write(nmo_string, '(I0)') nmo
            fname=trim(nmo_string) // '.mo.cube'
-           call mocube(mol,wfn,fname,calc%bas,nmo,spin)
+           call mocube(mol,wfn,fname,calc%bas,nmo,spin,res)
          end do
       else if (nspin.eq.2) then
          spin=1
          do nmo=1, wfn%homo(spin)
            write(nmo_string, '(I0)') nmo
            fname=trim(nmo_string) // '.alpha.cube'
-           call mocube(mol,wfn,fname,calc%bas,nmo,spin)
+           call mocube(mol,wfn,fname,calc%bas,nmo,spin,res)
          end do
          spin=2
          do nmo=1, wfn%homo(spin)
            write(nmo_string, '(I0)') nmo
            fname=trim(nmo_string) // '.beta.cube'
-           call mocube(mol,wfn,fname,calc%bas,nmo,spin)
+           call mocube(mol,wfn,fname,calc%bas,nmo,spin,res)
          end do
       endif
    endif
@@ -219,13 +223,14 @@ subroutine get_cube(input, mol, error)
 end subroutine get_cube
 
 
-subroutine cube(mol,wfn,fname,basis,sdens)
+subroutine cube(mol,wfn,fname,basis,sdens,res)
    implicit none
    type(structure_type), intent(in) :: mol
    type(basis_type), intent(in) :: basis
    type(wavefunction_type), intent(in) :: wfn
    character*(*), intent(in) :: fname
    logical, intent(in) :: sdens
+   integer, intent(in) :: res
 
    integer :: n
    real*8 :: xyz(3,mol%nat)
@@ -275,8 +280,8 @@ subroutine cube(mol,wfn,fname,basis,sdens)
       array(i)=exp(-dum)
    enddo
 
-   write(*,'('' cube_pthr     : '',f7.3)')cube_pthr
-   write(*,'('' cube_step     : '',f7.3)')cube_step
+   !write(*,'('' cube_pthr     : '',f7.3)')cube_pthr
+   !write(*,'('' cube_step     : '',f7.3)')cube_step
 
    px=maxval(xyz(1,1:n))+3.0
    py=maxval(xyz(2,1:n))+3.0
@@ -284,25 +289,25 @@ subroutine cube(mol,wfn,fname,basis,sdens)
    nx=minval(xyz(1,1:n))-3.0
    ny=minval(xyz(2,1:n))-3.0
    nz=minval(xyz(3,1:n))-3.0
-   write(*,*)'Grid Boundaries (x y z) :'
-   write(*,*)px,py,pz
-   write(*,*)nx,ny,nz
+   !write(*,*)'Grid Boundaries (x y z) :'
+   !write(*,*)px,py,pz
+   !write(*,*)nx,ny,nz
 
    ! calculate step size and number of steps (step size approx 0.2-0.5)
    ! Alternatively one could choose x=y=z=40-120
    ! x step number
    !xst=floor((abs(px)+abs(nx))/step)
-   xst=119
+   xst=res-1
    ! x step size
    xinc=abs(px-nx)/xst
    ! y step number
    !yst=floor((abs(py)+abs(ny))/step)
-   yst=119
+   yst=res-1
    ! y step size
    yinc=abs(py-ny)/yst
    ! z step number
    !zst=floor((abs(pz)+abs(nz))/step)
-   zst=119
+   zst=res-1
    ! z step size
    zinc=abs(pz-nz)/zst
    write(*,*)'Total # of points', (xst+1)*(yst+1)*(zst+1)
@@ -444,7 +449,7 @@ subroutine cube(mol,wfn,fname,basis,sdens)
  
  end subroutine cube
 
-subroutine mocube(mol,wfn,fname,basis,nmo,spin)
+subroutine mocube(mol,wfn,fname,basis,nmo,spin,res)
    implicit none
    type(structure_type), intent(in) :: mol
    type(basis_type), intent(in) :: basis
@@ -452,6 +457,7 @@ subroutine mocube(mol,wfn,fname,basis,nmo,spin)
    character*(*), intent(in) :: fname
    integer, intent(in) :: nmo
    integer, intent(in) :: spin
+   integer, intent(in) :: res
 
    integer :: n
    real*8 :: xyz(3,mol%nat)
@@ -501,8 +507,8 @@ subroutine mocube(mol,wfn,fname,basis,nmo,spin)
       array(i)=exp(-dum)
    enddo
 
-   write(*,'('' cube_pthr     : '',f7.3)')cube_pthr
-   write(*,'('' cube_step     : '',f7.3)')cube_step
+   !write(*,'('' cube_pthr     : '',f7.3)')cube_pthr
+   !write(*,'('' cube_step     : '',f7.3)')cube_step
 
    px=maxval(xyz(1,1:n))+3.0
    py=maxval(xyz(2,1:n))+3.0
@@ -510,25 +516,25 @@ subroutine mocube(mol,wfn,fname,basis,nmo,spin)
    nx=minval(xyz(1,1:n))-3.0
    ny=minval(xyz(2,1:n))-3.0
    nz=minval(xyz(3,1:n))-3.0
-   write(*,*)'Grid Boundaries (x y z) :'
-   write(*,*)px,py,pz
-   write(*,*)nx,ny,nz
+   !write(*,*)'Grid Boundaries (x y z) :'
+   !write(*,*)px,py,pz
+   !write(*,*)nx,ny,nz
 
    ! calculate step size and number of steps (step size approx 0.2-0.5)
    ! Alternatively one could choose x=y=z=40-120
    ! x step number
    !xst=floor((abs(px)+abs(nx))/step)
-   xst=119
+   xst=res-1
    ! x step size
    xinc=abs(px-nx)/xst
    ! y step number
    !yst=floor((abs(py)+abs(ny))/step)
-   yst=119
+   yst=res-1
    ! y step size
    yinc=abs(py-ny)/yst
    ! z step number
    !zst=floor((abs(pz)+abs(nz))/step)
-   zst=119
+   zst=res-1
    ! z step size
    zinc=abs(pz-nz)/zst
    write(*,*)'Total # of points', (xst+1)*(yst+1)*(zst+1)

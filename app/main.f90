@@ -125,6 +125,7 @@ subroutine help(unit)
       "    --homo", "Request HOMO", &
       "    --lumo", "Request LUMO", &
       "    --occ", "Request all occupied MOs", &
+      "    --res <int>", "Resolution of the cube file (default: 120³)", &
       "    --acc <real>", "Accuracy of the tight-binding calculation", &
       "    --thr <real>", "Threshold for the determination of the fragments", &
       "    --etemp <real>", "Electronic temperature in Kelvin", &
@@ -286,6 +287,10 @@ subroutine get_arguments(config, error)
       case("--etemp")
          iarg = iarg + 1
          call get_argument_as_real(iarg, config%etemp, error)
+         if (allocated(error)) exit
+      case("--res")
+         iarg = iarg + 1
+         call get_argument_as_int(iarg, config%res, error)
          if (allocated(error)) exit
       end select
    end do
