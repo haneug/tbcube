@@ -147,6 +147,7 @@ subroutine get_cube(input, mol, error)
    if (sdens) then
       fname='spindensity.cube'
       call cube(mol,wfn,fname,calc%bas,sdens,res)
+      sdens=.false.
    endif
 
    !> Spin Density Plotting Mode
